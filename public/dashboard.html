@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gadfly Admin | Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            margin: 0;
+            background: #f4f6f8;
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 250px;
+            background: #232d3f;
+            color: white;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar h2 {
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid #344054;
+            margin: 0;
+        }
+
+        .menu {
+            list-style: none;
+            padding: 0;
+        }
+
+        .menu li {
+            padding: 15px 20px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .menu li:hover,
+        .menu li.active {
+            background: #e91e63;
+        }
+
+        .menu li i {
+            margin-right: 10px;
+        }
+
+        /* Main Content */
+        .content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            margin-bottom: 20px;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #ddd;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            font-weight: bold;
+            color: #666;
+        }
+
+        .tab.active {
+            color: #e91e63;
+            border-bottom: 3px solid #e91e63;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+
+        th {
+            background: #f9fafb;
+            color: #555;
+        }
+
+        .btn {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            color: white;
+        }
+
+        .btn-edit {
+            background: #2196f3;
+        }
+
+        .btn-save {
+            background: #4caf50;
+        }
+
+        .status {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+
+        .online {
+            background: #e6fffa;
+            color: #047481;
+        }
+
+        .busy {
+            background: #fffaf0;
+            color: #9c4221;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            width: 400px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <h2>Gadfly Admin</h2>
+        <ul class="menu">
+            <li class="active" onclick="showSection('dashboard')">Dashboard</li>
+            <li onclick="showSection('partners')">Partner Management</li>
+            <li onclick="showSection('customers')">Customer Management</li>
+            <li onclick="showSection('gifts')">Gift Management</li>
+        </ul>
+    </div>
+
+    <!-- Main Content -->
+    <div class="content">
+        <div class="header">
+            <h1 id="pageTitle">Dashboard</h1>
+            <button class="btn" style="background:#666;" onclick="logout()">Logout</button>
+        </div>
+
+        <!-- DASHBOARD SECTION -->
+        <div id="dashboard" class="section">
+            <div style="display:flex; gap:20px;">
+                <div class="card" style="flex:1;">
+                    <h3>Total Partners</h3>
+                    <h1 id="totalPartners">0</h1>
+                </div>
+                <div class="card" style="flex:1;">
+                    <h3>Total Customers</h3>
+                    <h1 id="totalCustomers">0</h1>
+                </div>
+            </div>
+        </div>
+
+        <!-- PARTNERS SECTION -->
+        <div id="partners" class="section" style="display:none;">
+            <!-- ... existing partner code ... -->
+            <div class="tabs">
+                <div class="tab active">Dating Gadfly</div>
+            </div>
+            <div class="card">
+                <input type="text" id="partnerSearch" placeholder="Search Partner..." onkeyup="fetchPartners()"
+                    style="padding:8px; width: 300px; margin-bottom:10px;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Empl ID</th>
+                            <th>Avatar</th>
+                            <th>Name</th>
+                            <th>Role</th>
+                            <th>Rate (₹/min)</th>
+                            <th>Chat (₹/min)</th>
+                            <th>Status</th>
+                            <th>Block</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="partnerTableBody">
+                        <!-- JS GENERATED -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- CUSTOMERS SECTION -->
+        <div id="customers" class="section" style="display:none;">
+            <!-- ... existing customer code ... -->
+            <div class="tabs">
+                <div class="tab active" onclick="switchCustomerTab('dating')">Dating Gadfly</div>
+                <div class="tab" onclick="switchCustomerTab('mail')">Mail Gadfly</div>
+                <div class="tab" onclick="switchCustomerTab('astrology')">Astrologer</div>
+            </div>
+            <div class="card">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th>Wallet</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="customerTableBody">
+                        <!-- JS GENERATED -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- GIFTS SECTION -->
+        <div id="gifts" class="section" style="display:none;">
+            <div class="card">
+                <button class="btn btn-save" onclick="openAddGiftModal()" style="margin-bottom:20px;">+ Add New
+                    Gift</button>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Icon</th>
+                            <th>Price (₹)</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="giftTableBody">
+                        <!-- JS GENERATED -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Edit Partner Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-content" style="width: 500px;">
+            <h3 style="margin-top:0;">Edit Partner</h3>
+            <input type="hidden" id="editPartnerId">
+
+            <div style="display:flex; gap:10px;">
+                <div class="form-group" style="flex:1;">
+                    <label>First Name</label>
+                    <input type="text" id="editFirstName" />
+                </div>
+                <div class="form-group" style="flex:1;">
+                    <label>Last Name</label>
+                    <input type="text" id="editLastName" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Profile Picture</label>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <input type="text" id="editProfilePic" placeholder="Enter URL or Upload" style="flex:2;" />
+                    <input type="file" id="uploadProfilePicBtn" accept="image/*" style="flex:1;"
+                        onchange="handleImageUpload(this)" />
+                </div>
+                <small style="color:#666; font-size:12px;">Supported: JPG, PNG. Uploads will auto-fill the URL.</small>
+            </div>
+
+            <div style="display:flex; gap:10px;">
+                <div class="form-group" style="flex:1;">
+                    <label>Audio Call Rate (₹/min)</label>
+                    <input type="number" id="editRate" />
+                </div>
+                <div class="form-group" style="flex:1;">
+                    <label>Chat Rate (₹/min)</label>
+                    <input type="number" id="editChatRate" />
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Partner Role</label>
+                <select id="editRole">
+                    <option value="normal">Normal Coach</option>
+                    <option value="expert">Expert Coach</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button class="btn" style="background:#999;" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-save" onclick="savePartner()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Gift Modal -->
+    <div id="addGiftModal" class="modal">
+        <div class="modal-content" style="width: 400px;">
+            <h3 style="margin-top:0;">Add New Gift</h3>
+
+            <div class="form-group">
+                <label>Gift Icon (White background recommended)</label>
+                <div style="display:flex; gap:10px;">
+                    <input type="text" id="giftIconUrl" placeholder="Icon URL" style="flex:2;" readonly>
+                    <input type="file" id="uploadGiftIconBtn" accept="image/*" style="flex:1;"
+                        onchange="handleGiftIconUpload(this)">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Price (₹)</label>
+                <input type="number" id="giftPrice" placeholder="Enter Price">
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn" style="background:#999;" onclick="closeGiftModal()">Cancel</button>
+                <button class="btn btn-save" onclick="saveNewGift()">Add Gift</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

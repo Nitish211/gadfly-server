@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gadfly Admin | Login</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .login-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            width: 350px;
+            text-align: center;
+        }
+        h2 { color: #333; margin-bottom: 20px; }
+        input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background: #e91e63;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover { background: #d81b60; }
+        .error { color: red; font-size: 14px; margin-top: 10px; display: none; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <h2>Gadfly Admin</h2>
+        <input type="text" id="username" placeholder="Username" />
+        <input type="password" id="password" placeholder="Password" />
+        <button onclick="login()">Login</button>
+        <div class="error" id="errorMsg">Invalid Credentials</div>
+    </div>
+
+    <script>
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const errorMsg = document.getElementById('errorMsg');
+
+            try {
+                const res = await fetch('/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    localStorage.setItem('isAdmin', 'true');
+                    window.location.href = 'dashboard.html';
+                } else {
+                    errorMsg.style.display = 'block';
+                    errorMsg.textContent = data.message;
+                }
+            } catch (e) {
+                console.error(e);
+                errorMsg.textContent = "Server Error";
+                errorMsg.style.display = 'block';
+            }
+        }
+    </script>
+</body>
+</html>
