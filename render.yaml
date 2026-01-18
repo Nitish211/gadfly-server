@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: gadfly-server
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+    region: singapore # Optional: Adjust if needed
+fromComponents: true
