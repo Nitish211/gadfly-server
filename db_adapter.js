@@ -6,16 +6,33 @@ const Request = require('./models/Request');
 
 const DB_FILE = path.join(__dirname, 'db.json');
 
-// --- LOCAL DB HELPERS ---
-const readLocalDb = () => {
-    try {
-        if (!fs.existsSync(DB_FILE)) return { partners: [], customers: [], gifts: [], requests: [], transactions: [] };
-        return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-    } catch (e) { return { partners: [], customers: [], gifts: [], requests: [], transactions: [] }; }
-};
+// --- IN-MEMORY CACHE (CRITICAL FIX FOR CLOUD) ---
+// Cloud Servers (Render) often block file writes or wipe them.
+// We load data into RAM once, and use RAM as the source of truth.
+let MEM_DB = { partners: [], customers: [], gifts: [], requests: [], transactions: [] };
 
-const writeLocalDb = (data) => {
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+try {
+    if (fs.existsSync(DB_FILE)) {
+        console.log("Loading DB into Memory...");
+        MEM_DB = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+    }
+} catch (e) {
+    console.error("Failed to load DB file:", e);
+}
+
+// Helper to access Cache
+const getDb = () => MEM_DB;
+
+const saveDb = (newData) => {
+    // 1. Update Memory (Instant & Guaranteed)
+    MEM_DB = newData;
+
+    // 2. Try to persist to disk (Best Effort)
+    try {
+        fs.writeFileSync(DB_FILE, JSON.stringify(newData, null, 2));
+    } catch (e) {
+        console.error("Warning: Could not write to disk (Cloud Read-Only?). Data valid in RAM only.");
+    }
 };
 
 // --- ADAPTER ---
@@ -24,13 +41,10 @@ const mongoose = require('mongoose');
 
 // --- TRANSACTION HELPERS ---
 async function saveTransaction(data) {
-    if (mongoose.connection.readyState === 1) { // MongoDB Connected
-        // MongoDB logic is handled in server.js directly via new Transaction().save()
-        // Here we just return true to match interface, or implement if moved here
+    if (mongoose.connection.readyState === 1) {
         return true;
     } else {
-        // LOCAL JSON
-        const db = readLocalDb();
+        const db = getDb();
         if (!db.transactions) db.transactions = [];
         const newTxn = {
             _id: 'txn_' + Date.now(),
@@ -38,18 +52,16 @@ async function saveTransaction(data) {
             createdAt: new Date().toISOString()
         };
         db.transactions.push(newTxn);
-        writeLocalDb(db);
+        saveDb(db);
         return newTxn;
     }
 }
 
 async function getTransactions(userId) {
-    if (mongoose.connection.readyState === 1) { // MongoDB
-        // Handled in server.js via Mongoose
+    if (mongoose.connection.readyState === 1) {
         return [];
     } else {
-        // LOCAL JSON
-        const db = readLocalDb();
+        const db = getDb();
         return (db.transactions || [])
             .filter(t => t.userId === userId)
             .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
@@ -68,12 +80,12 @@ module.exports = {
             }
             return user;
         } else {
-            const db = readLocalDb();
+            const db = getDb();
             let user = db.customers.find(c => c.mobile === mobile);
             if (!user) {
                 user = { ...initialData, mobile };
                 db.customers.push(user);
-                writeLocalDb(db);
+                saveDb(db);
             }
             return user;
         }
@@ -84,38 +96,24 @@ module.exports = {
         if (isMongo()) {
             return await User.findOne({ id });
         } else {
-            const db = readLocalDb();
+            const db = getDb();
             return db.customers.find(c => c.id === id) || db.partners.find(p => p.id === id);
         }
     },
 
     // GET PARTNERS
-    // GET PARTNERS
     getPartners: async (queryStr, includeBlocked, partnerRole, verificationStatus) => {
         if (isMongo()) {
             let filter = { role: 'partner' };
             if (includeBlocked !== 'true') filter.isBlocked = false;
+            if (verificationStatus) filter.verificationStatus = verificationStatus;
+            else if (includeBlocked !== 'true') filter.verificationStatus = 'verified';
 
-            // 1. Verification Status Filtering
-            if (verificationStatus) {
-                // Admin asking for specific status (pending, verified, rejected)
-                filter.verificationStatus = verificationStatus;
-            } else {
-                // Default: Show only 'verified' for public users
-                if (includeBlocked !== 'true') {
-                    filter.verificationStatus = 'verified';
-                }
-            }
-
-            // Add Partner Role Filter
             if (partnerRole && partnerRole !== 'null' && partnerRole !== 'partner') {
                 filter.partnerRole = partnerRole;
             }
 
-            // DEBUG RETURN
-            if (queryStr === 'DEBUG') {
-                return [{ _id: 'debug', filterObject: filter }];
-            }
+            if (queryStr === 'DEBUG') return [{ _id: 'debug', filterObject: filter }];
 
             if (queryStr) {
                 const regex = new RegExp(queryStr, 'i');
@@ -123,11 +121,10 @@ module.exports = {
             }
             return await User.find(filter);
         } else {
-            const db = readLocalDb();
+            const db = getDb();
             let partners = db.partners;
             if (includeBlocked !== 'true') partners = partners.filter(p => !p.isBlocked);
 
-            // Add Partner Role Filter
             if (partnerRole && partnerRole !== 'null' && partnerRole !== 'partner') {
                 partners = partners.filter(p => p.partnerRole === partnerRole);
             }
@@ -161,7 +158,7 @@ module.exports = {
             await user.save();
             return { success: true, isLiked };
         } else {
-            const db = readLocalDb();
+            const db = getDb();
             let user = db.customers.find(c => c.id === userId);
             if (!user) user = db.partners.find(p => p.id === userId);
             if (!user) return { success: false, message: "User not found" };
@@ -176,7 +173,7 @@ module.exports = {
                 user.likes.splice(index, 1);
                 isLiked = false;
             }
-            writeLocalDb(db);
+            saveDb(db);
             return { success: true, isLiked };
         }
     },
@@ -184,7 +181,7 @@ module.exports = {
     // GET GIFTS
     getGifts: async () => {
         if (isMongo()) return await Gift.find({});
-        else return readLocalDb().gifts || [];
+        else return getDb().gifts || [];
     },
 
     // ADD GIFT
@@ -193,10 +190,10 @@ module.exports = {
             const gift = new Gift(giftData);
             return await gift.save();
         } else {
-            const db = readLocalDb();
+            const db = getDb();
             if (!db.gifts) db.gifts = [];
             db.gifts.push(giftData);
-            writeLocalDb(db);
+            saveDb(db);
             return giftData;
         }
     },
@@ -206,11 +203,11 @@ module.exports = {
         if (isMongo()) {
             return await Gift.findOneAndUpdate({ id }, updateData, { new: true });
         } else {
-            const db = readLocalDb();
+            const db = getDb();
             let gift = db.gifts.find(g => g.id === id);
             if (gift) {
                 Object.assign(gift, updateData);
-                writeLocalDb(db);
+                saveDb(db);
                 return gift;
             }
             return null;
@@ -222,11 +219,11 @@ module.exports = {
         if (isMongo()) {
             return await Gift.findOneAndDelete({ id });
         } else {
-            const db = readLocalDb();
+            const db = getDb();
             const index = db.gifts.findIndex(g => g.id === id);
             if (index !== -1) {
                 const deleted = db.gifts.splice(index, 1);
-                writeLocalDb(db);
+                saveDb(db);
                 return deleted[0];
             }
             return null;
@@ -236,18 +233,15 @@ module.exports = {
     // UPDATE USER / PARTNER (Generic)
     updateUser: async (id, updateData) => {
         if (isMongo()) {
-            // If ID starts with 'c_', search by id. If mongoID use _id?
-            // Usually we use custom 'id' field.
             return await User.findOneAndUpdate({ id }, updateData, { new: true });
         } else {
-            const db = readLocalDb();
-            // Try partners first
+            const db = getDb();
             let user = db.partners.find(p => p.id === id);
             if (!user) user = db.customers.find(c => c.id === id);
 
             if (user) {
                 Object.assign(user, updateData);
-                writeLocalDb(db);
+                saveDb(db);
                 return user;
             }
             return null; // Not found
