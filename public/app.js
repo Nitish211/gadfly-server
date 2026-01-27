@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.href = 'index.html';
     }
     fetchStats();
+    fetchRequests(); // Load Request Badges
 });
 
 function logout() {
@@ -34,6 +35,19 @@ function showSection(id) {
     if (id === 'gifts') {
         document.querySelector('.menu li:nth-child(4)').classList.add('active'); // 4th item
         fetchGifts();
+    }
+    if (id === 'verification') {
+        document.querySelector('.menu li:nth-child(2)').classList.add('active'); // Keep Partner tab active visually or separate?
+        // Let's assume it's the 2nd item for now or we update indices.
+        // Actually, we inserted it as 2nd item in HTML? No, we inserted between Partners and Customers.
+        // Partners=2, Verification=3, Customers=4, Gifts=5
+        document.querySelector('.menu li:nth-child(2)').classList.remove('active'); // clear others
+        document.querySelector('.menu li:nth-child(2)').classList.add('active'); // Wait, let's just make specific logic
+        fetchPendingPartners();
+    }
+    if (id === 'approvals') {
+        document.querySelector('.menu li:nth-child(5)').classList.add('active'); // 5th item
+        fetchRequests();
     }
 
     document.getElementById('pageTitle').textContent = id.charAt(0).toUpperCase() + id.slice(1);
@@ -109,12 +123,14 @@ function openEditModal(id) {
     if (!p) return;
 
     currentPartnerId = id;
+    // Populate Modal
     document.getElementById('editFirstName').value = p.firstName;
     document.getElementById('editLastName').value = p.lastName;
     document.getElementById('editProfilePic').value = p.profilePic;
     document.getElementById('editRate').value = p.audioCallRate;
     document.getElementById('editChatRate').value = p.chatRate || 0;
-    document.getElementById('editRole').value = p.partnerRole ? p.partnerRole.toLowerCase() : 'normal';
+    document.getElementById('editRole').value = p.partnerRole ? p.partnerRole.toLowerCase() : 'basic';
+    document.getElementById('editVideoEnabled').checked = p.isVideoCallEnabled === true;
 
     document.getElementById('editModal').style.display = 'flex';
 }
@@ -130,6 +146,7 @@ async function savePartner() {
     const rate = document.getElementById('editRate').value;
     const chatRate = document.getElementById('editChatRate').value;
     const role = document.getElementById('editRole').value;
+    const isVideoEnabled = document.getElementById('editVideoEnabled').checked;
 
     try {
         const res = await fetch('/api/input_update_partner', {
@@ -142,7 +159,8 @@ async function savePartner() {
                 profilePic: pic,
                 audioCallRate: parseInt(rate),
                 chatRate: parseInt(chatRate),
-                partnerRole: role
+                partnerRole: role,
+                isVideoCallEnabled: isVideoEnabled
             })
         });
         const data = await res.json();
@@ -177,6 +195,7 @@ function renderCustomers(list) {
     list.forEach(c => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
+            <td>${c.emplid || '-'}</td>
             <td>${c.name}</td>
             <td>${c.type.toUpperCase()}</td>
             <td>₹${c.wallet}</td>
@@ -293,6 +312,80 @@ function openAddGiftModal() {
 
 function closeGiftModal() {
     document.getElementById('addGiftModal').style.display = 'none';
+}
+
+// --- VERIFICATION ---
+async function fetchPendingPartners() {
+    try {
+        // Query for PENDING partners
+        // We use the existing /api/user endpoint with special params handling
+        const res = await fetch('/api/user?role=partner&verificationStatus=pending&includeBlocked=true');
+        const data = await res.json();
+
+        // Also update badge
+        const count = data.data.length;
+        const badge = document.getElementById('pendingBadge');
+        if (count > 0) {
+            badge.innerText = count;
+            badge.style.display = 'inline-block';
+        } else {
+            badge.style.display = 'none';
+        }
+
+        renderVerificationRequests(data.data);
+    } catch (e) {
+        console.error(e);
+        document.getElementById('verificationTableBody').innerHTML = '<tr><td colspan="5">Error fetching data</td></tr>';
+    }
+}
+
+function renderVerificationRequests(list) {
+    const tbody = document.getElementById('verificationTableBody');
+    tbody.innerHTML = '';
+
+    if (list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5">No pending requests.</td></tr>';
+        return;
+    }
+
+    list.forEach(p => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><img src="${p.profilePic || 'https://via.placeholder.com/40'}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;"></td>
+            <td>${p.firstName} ${p.lastName}</td>
+            <td>${p.mobile}</td>
+            <td>
+                ${p.voiceUrl ? `<audio controls src="${p.voiceUrl}" style="height:30px;width:200px;"></audio>` : 'No Audio'}
+            </td>
+            <td>
+                <button class="btn" style="background:#4caf50;" onclick="verifyPartner('${p.id}', 'verified')">Approve</button>
+                <button class="btn" style="background:#e91e63;" onclick="verifyPartner('${p.id}', 'rejected')">Reject</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+async function verifyPartner(id, status) {
+    if (!confirm(`Are you sure you want to ${status.toUpperCase()} this partner?`)) return;
+
+    try {
+        const res = await fetch('/api/admin/verify_partner', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, status })
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert(`Partner ${status}!`);
+            fetchPendingPartners(); // Refresh
+        } else {
+            alert("Action failed: " + data.message);
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Error executing action");
+    }
 }
 
 async function handleGiftIconUpload(input) {
